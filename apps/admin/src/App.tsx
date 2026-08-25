@@ -222,18 +222,19 @@ export default function App() {
     );
   }
 
-  const handleAction = async (action: 'start' | 'pause' | 'resume' | 'stop' | 'reset') => {
+  const handleAction = async (action: 'start' | 'begin' | 'pause' | 'resume' | 'stop' | 'reset') => {
     try {
       setError(null);
       let endpoint = '';
       if (action === 'start') endpoint = '/start-contest';
+      else if (action === 'begin') endpoint = '/begin-coding';
       else if (action === 'pause') endpoint = '/pause-contest';
       else if (action === 'resume') endpoint = '/resume-contest';
       else if (action === 'stop') endpoint = '/emergency-stop';
       else if (action === 'reset') endpoint = '/reset-contest';
       await axios.post(`${API_URL}${endpoint}`);
-      // WARN-1 fix: Start transitions to LOBBY (not immediately RUNNING)
-      setContestStatus(action === 'stop' ? 'ENDED' : action === 'reset' ? 'NOT_STARTED' : action === 'start' ? 'LOBBY' : action === 'resume' ? 'RUNNING' : 'PAUSED');
+      // Start transitions to LOBBY, begin transitions to RUNNING directly
+      setContestStatus(action === 'stop' ? 'ENDED' : action === 'reset' ? 'NOT_STARTED' : action === 'start' ? 'LOBBY' : action === 'begin' || action === 'resume' ? 'RUNNING' : 'PAUSED');
       fetchData();
     } catch (err: any) {
       setError(err.response?.data?.error || err.message || 'An error occurred');
@@ -333,7 +334,10 @@ export default function App() {
           </div>
           <div className="flex flex-wrap gap-4">
             <button onClick={() => handleAction('start')} className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-mono text-xs font-bold uppercase border-2 border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none">
-              Start Contest
+              Start Lobby
+            </button>
+            <button onClick={() => handleAction('begin')} className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-black font-mono text-xs font-black uppercase border-2 border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none animate-pulse">
+              🚀 Begin Coding
             </button>
             <button onClick={() => handleAction('pause')} className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-mono text-xs font-bold uppercase border-2 border-black shadow-[2px_2px_0_#000] active:translate-y-0.5 active:shadow-none">
               Pause Contest

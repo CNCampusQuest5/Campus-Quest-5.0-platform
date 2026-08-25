@@ -277,7 +277,7 @@ export default function App() {
 
   // Auto-navigate screen based on contestStatus
   useEffect(() => {
-    if (contestStatus === 'RUNNING' && currentScreen === 'lobby') {
+    if (contestStatus === 'RUNNING' && (currentScreen === 'lobby' || currentScreen === 'diagnostics')) {
       setCurrentScreen('coding');
     } else if (contestStatus === 'LOBBY' && (currentScreen === 'coding' || currentScreen === 'hints')) {
       setCurrentScreen('lobby');

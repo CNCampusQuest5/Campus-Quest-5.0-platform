@@ -37,8 +37,17 @@ export const TEST_TEAMS = [
   { id: 'test-team-phi',       name: 'Lizard Logic',       email: 'lizard@test.cq',     password: 'lizard600' },
   { id: 'test-team-chi',       name: 'Sandman Script',     email: 'sandman@test.cq',    password: 'sandman700' },
   { id: 'test-team-psi',       name: 'Vulture Vector',     email: 'vulture@test.cq',    password: 'vulture800' },
-  { id: 'test-team-omega',     name: 'Carnage Bytes',      email: 'carnage@test.cq',    password: 'carnage900' },
   { id: 'test-team-25',        name: 'Kingpin Coders',     email: 'kingpin@test.cq',    password: 'kingpin999' },
+  { id: 'test-team-26',        name: 'Spider-Gwen Guild',  email: 'gwen@test.cq',       password: 'gwen100' },
+  { id: 'test-team-27',        name: 'Miles Morales Cadre', email: 'miles@test.cq',     password: 'miles200' },
+  { id: 'test-team-28',        name: 'Spider-Man 2099',    email: 'miguel@test.cq',    password: 'miguel300' },
+  { id: 'test-team-29',        name: 'Spider-Noir Ops',    email: 'noir@test.cq',      password: 'noir400' },
+  { id: 'test-team-30',        name: 'Peni Parker Pilots', email: 'spdr@test.cq',      password: 'spdr500' },
+  { id: 'test-team-31',        name: 'Spider-Ham Heroes',  email: 'ham@test.cq',       password: 'ham600' },
+  { id: 'test-team-32',        name: 'Web-Weaver Cadets',  email: 'weaver@test.cq',    password: 'weaver700' },
+  { id: 'test-team-33',        name: 'Silk Network',       email: 'silk@test.cq',      password: 'silk800' },
+  { id: 'test-team-34',        name: 'Arachne Analysts',   email: 'arachne@test.cq',   password: 'arachne900' },
+  { id: 'test-team-35',        name: 'Spider-Byte Cyber',  email: 'byte@test.cq',      password: 'byte1000' },
 ];
 
 // Seed test teams into DB on startup (idempotent)
@@ -139,6 +148,43 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     }
 
     return { success: true, message: 'Contest lobby started globally' };
+  });
+
+  // 1a-2. Begin Coding Immediately (Skip Lobby / Force Start)
+  fastify.post('/admin/begin-coding', async (_request, _reply) => {
+    const allContests = await db.select().from(contests);
+    const now = new Date();
+    const durationMs = 7200000; // 2 hours
+    const endsAt = new Date(now.getTime() + durationMs);
+
+    if (allContests.length === 0) {
+      await db.insert(contests).values({
+        status: 'RUNNING',
+        durationMs,
+        startedAt: now,
+        endsAt,
+        totalPausedMs: 0,
+      });
+    } else {
+      await db.update(contests)
+        .set({
+          status: 'RUNNING',
+          startedAt: now,
+          endsAt,
+          totalPausedMs: 0,
+        })
+        .where(eq(contests.id, allContests[0].id));
+    }
+
+    const io = (fastify as any).io;
+    if (io) {
+      io.emit('contest:started', {
+        endsAt: endsAt.toISOString(),
+        serverTime: now.toISOString(),
+      });
+    }
+
+    return { success: true, message: 'Contest started immediately in RUNNING status' };
   });
 
   // 1b. Pause Global Contest
