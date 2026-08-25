@@ -34,13 +34,14 @@ export default function Lobby({ onProceed, teamName, onTeamNameChange, lobbyTime
     useEffect(() => {
         const handleContestStarted = () => {
             setIsStarting(true);
-            // Short dramatic delay then transition to coding screen
             const t = setTimeout(() => onProceed(), 2000);
             return () => clearTimeout(t);
         };
         socket.on('contest:started', handleContestStarted);
+        socket.on('contest:resumed', handleContestStarted);
         return () => {
             socket.off('contest:started', handleContestStarted);
+            socket.off('contest:resumed', handleContestStarted);
         };
     }, [onProceed]);
     const formatTime = (seconds) => {

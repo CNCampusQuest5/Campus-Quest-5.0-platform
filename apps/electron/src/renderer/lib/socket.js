@@ -7,7 +7,7 @@ import { io } from 'socket.io-client';
  */
 export const API_BASE = window.__CQ_API_URL__ ||
     import.meta.env.VITE_API_URL ||
-    'https://campus-quest-backend-mspi.onrender.com';
+    'https://campus-quest-backend-production-8cee.up.railway.app';
 /**
  * Single socket instance for the entire app lifetime.
  * Starts disconnected — connectSocket() is called after login with a valid JWT.

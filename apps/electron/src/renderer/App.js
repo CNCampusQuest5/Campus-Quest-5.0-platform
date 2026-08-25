@@ -269,11 +269,15 @@ export default function App() {
     }, []); // Intentionally empty: register once per app lifetime
     // Auto-navigate screen based on contestStatus
     useEffect(() => {
-        if (contestStatus === 'RUNNING' && (currentScreen === 'lobby' || currentScreen === 'diagnostics')) {
-            setCurrentScreen('coding');
+        if (contestStatus === 'RUNNING') {
+            if (currentScreen === 'lobby' || currentScreen === 'diagnostics') {
+                setCurrentScreen('coding');
+            }
         }
-        else if (contestStatus === 'LOBBY' && (currentScreen === 'coding' || currentScreen === 'hints')) {
-            setCurrentScreen('lobby');
+        else if (contestStatus === 'LOBBY') {
+            if (currentScreen === 'coding' || currentScreen === 'hints') {
+                setCurrentScreen('lobby');
+            }
         }
     }, [contestStatus, currentScreen]);
     // HIGH-5: No optimistic update — powerup:updated event from server is authoritative
