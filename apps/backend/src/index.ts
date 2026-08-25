@@ -16,8 +16,8 @@ import { syncProblemsToDatabase } from './services/problems';
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET, ADMIN_SECRET } from './routes/admin';
 import { startJudgeWorker } from './workers/judge.worker';
-import { runMigrations } from './db/migrate';
-import { db } from './db';
+import { runMigrations, verifySchema } from './db/migrate';
+import { db, client as pgClient } from './db';
 import { connection as redisConnection } from './config/redis';
 import { contests } from './db/schema';
 import { eq, sql } from 'drizzle-orm';
@@ -26,11 +26,14 @@ const PORT = parseInt(process.env.PORT ?? '3001', 10);
 const HOST = process.env.HOST ?? '0.0.0.0';
 const CORS_ORIGINS = (process.env.CORS_ORIGINS ?? 'http://localhost:5173,http://localhost:5174,http://localhost:3000').split(',');
 
+let isDbReady = false;
+
 async function bootstrap() {
   console.log('[Startup] NODE_ENV=production');
   console.log(`[Startup] PORT=${PORT}`);
   console.log(`[Startup] Host=${HOST}`);
   console.log('[Startup] Health endpoint=/health');
+  console.log('[Startup] Readiness endpoint=/ready');
 
   // Validate required environment variables (Do NOT print values to log!)
   const REQUIRED_ENV = ['DATABASE_URL'];
@@ -41,7 +44,7 @@ async function bootstrap() {
     process.exit(1);
   }
 
-  // Create lightweight Fastify instance first so we can bind the health port immediately
+  // Create lightweight Fastify instance
   const fastify = Fastify({ logger: false });
 
   await fastify.register(cors, {
@@ -62,34 +65,51 @@ async function bootstrap() {
     timeWindow: '1 minute',
   });
 
-  // 1. Lightweight health check - binds immediately, does NOT fail if database/redis is starting
+  // 1. Lightweight Liveness Check: /health (HTTP 200 OK)
   fastify.get('/health', async () => ({ status: 'ok' }));
 
-  // 2. Detailed health check
-  fastify.get('/health/detailed', async (_req, reply) => {
-    const checks: Record<string, string> = {};
+  // 2. Comprehensive Readiness Check: /ready (HTTP 200 if ready, HTTP 503 if not ready)
+  fastify.get('/ready', async (_req, reply) => {
+    let dbStatus = 'disconnected';
+    let redisStatus = 'disconnected';
+
+    const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+      return Promise.race([
+        promise,
+        new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeoutMs))
+      ]);
+    };
+
     try {
-      await db.execute(sql`SELECT 1`);
-      checks.database = 'ok';
-    } catch {
-      checks.database = 'error';
+      await withTimeout(db.execute(sql`SELECT 1`), 2000);
+      const schemaCheck = await withTimeout(verifySchema(), 2000);
+      if (schemaCheck.ok) {
+        dbStatus = 'connected';
+      } else {
+        dbStatus = 'migration_failed';
+      }
+    } catch (err: any) {
+      dbStatus = err?.message === 'Timeout' ? 'timeout' : 'error';
     }
+
     try {
-      await redisConnection.ping();
-      checks.redis = 'ok';
-    } catch {
-      checks.redis = 'error';
+      await withTimeout(redisConnection.ping(), 2000);
+      redisStatus = 'connected';
+    } catch (err: any) {
+      redisStatus = err?.message === 'Timeout' ? 'timeout' : 'error';
     }
-    checks.judgeWorker = process.env.DISABLE_JUDGE_WORKER !== 'true' ? 'ok' : 'disabled';
-    const allOk = Object.values(checks).every(v => v === 'ok' || v === 'disabled');
-    return reply.code(allOk ? 200 : 503).send({
-      status: allOk ? 'ok' : 'degraded',
+
+    const ready = dbStatus === 'connected' && redisStatus === 'connected';
+
+    return reply.code(ready ? 200 : 503).send({
+      status: ready ? 'ready' : 'not_ready',
+      database: dbStatus,
+      redis: redisStatus,
       timestamp: new Date().toISOString(),
-      checks,
     });
   });
 
-  // Register admin API routes
+  // Register admin & workspace API routes
   await fastify.register(adminRoutes);
   await fastify.register(workspaceRoutes);
   await fastify.register(demoRoutes);
@@ -154,40 +174,48 @@ async function bootstrap() {
     });
   });
 
-  // Bind Fastify Server to port so healthchecks immediately resolve 200 OK
+  // Bind Fastify Server to port first
   await fastify.listen({ port: PORT, host: HOST });
   console.log('[Startup] Server listening');
   console.log('[Startup] Socket.IO=ready');
 
-  // ── Non-critical initialization operations executed asynchronously after binding ──
+  // ── Sequential initialization operations after binding ──
   
-  // 1. Run migrations safely
-  runMigrations().then(() => {
-    console.log('[Startup] Database=connected');
-  }).catch(err => {
-    console.error('[Startup] ❌ Database connection/migration error:', err.message);
-  });
-
-  // 2. Redis connection test
-  redisConnection.ping().then(() => {
+  // 1. Redis Connection
+  try {
+    await redisConnection.ping();
     console.log('[Startup] Redis=connected');
-  }).catch(err => {
+  } catch (err: any) {
     console.warn('[Startup] ⚠️ Redis connection failed:', err.message);
-  });
+  }
 
-  // 3. Problem syncing
-  syncProblemsToDatabase().then((syncResult) => {
-    console.log(`[Startup] Problems loaded: ${syncResult.totalProblems} problems, ${syncResult.totalTestcases} testcases`);
-  }).catch(err => {
-    console.error('[Startup] ❌ Problem sync failed:', err.message);
-  });
+  // 2. PostgreSQL Connection & Migration Execution
+  const migrationOk = await runMigrations();
+  if (migrationOk) {
+    isDbReady = true;
+    console.log('[Startup] Database=connected');
+    console.log('[Startup] Database migration & schema verification passed');
 
-  // 4. Seed test teams
-  seedTestTeams().catch(err => {
-    console.error('[Startup] ❌ Test team seeding failed:', err.message);
-  });
+    // 3. Problem Synchronization
+    try {
+      const syncResult = await syncProblemsToDatabase();
+      console.log(`[Startup] Problems loaded: ${syncResult.totalProblems} problems, ${syncResult.totalTestcases} testcases`);
+    } catch (err: any) {
+      console.error('[Startup] ❌ Problems synchronization failed:', err.message);
+    }
 
-  // 5. Start background worker queue
+    // 4. Test Team Seeding
+    try {
+      await seedTestTeams();
+      console.log('[Startup] Seed verification passed');
+    } catch (err: any) {
+      console.error('[Startup] ❌ Test team seeding failed:', err.message);
+    }
+  } else {
+    console.error('[Startup] ❌ Database migrations or schema verification failed.');
+  }
+
+  // 5. Judge Worker Queue
   let worker: any = null;
   if (process.env.DISABLE_JUDGE_WORKER !== 'true') {
     try {
@@ -198,8 +226,10 @@ async function bootstrap() {
     }
   }
 
-  // Server-authoritative lobby timer check tick
+  // 6. Server-authoritative lobby timer check interval (Throttles error logs if DB is uninitialized)
+  let lastLobbyErrorTime = 0;
   setInterval(async () => {
+    if (!isDbReady) return; // Don't run interval queries until database schema is verified
     try {
       const allContests = await db.select().from(contests);
       if (allContests.length > 0) {
@@ -222,7 +252,11 @@ async function bootstrap() {
         }
       }
     } catch (err: any) {
-      console.error('[Contest Engine] Error in lobby check interval:', err.message);
+      const now = Date.now();
+      if (now - lastLobbyErrorTime > 30000) { // Throttle log to once every 30 seconds
+        console.error('[Contest Engine] Error in lobby check interval:', err.message);
+        lastLobbyErrorTime = now;
+      }
     }
   }, 1000);
 
@@ -235,7 +269,9 @@ async function bootstrap() {
       }
       io.close();
       await fastify.close();
-      console.log('[Shutdown] Server closed. Goodbye.');
+      await redisConnection.quit().catch(() => {});
+      await pgClient.end().catch(() => {});
+      console.log('[Shutdown] All connections closed. Goodbye.');
       process.exit(0);
     });
   }

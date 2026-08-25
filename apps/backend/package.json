@@ -18,6 +18,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:seed": "tsx src/db/seed.ts",
+    "db:verify": "tsx scripts/verify_production_db.ts",
     "db:reset": "prisma migrate reset --force"
   },
   "dependencies": {

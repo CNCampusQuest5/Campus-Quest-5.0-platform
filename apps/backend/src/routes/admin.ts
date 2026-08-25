@@ -50,13 +50,13 @@ export async function seedTestTeams() {
         id: t.id,
         name: t.name,
         email: t.email,
-        passwordHash: t.password, // plain text for dev — replace with bcrypt in prod
+        passwordHash: t.password, // plain text for dev
         violationCount: 0,
         isDisqualified: false,
         isPaused: false,
         spiderSenseCharges: 1,
         hintStage: 0,
-      });
+      }).onConflictDoNothing();
       console.log(`[Seed] Created test team: ${t.name} (${t.id})`);
     }
   }

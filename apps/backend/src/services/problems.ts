@@ -9,6 +9,7 @@ export async function syncProblemsToDatabase(): Promise<{ totalProblems: number;
   console.log(`[Sync Problems] Scanning problems directory: ${problemsDir}`);
   let totalProblems = 0;
   let totalTestcases = 0;
+
   try {
     const items = await fs.readdir(problemsDir);
     for (const item of items) {
@@ -82,14 +83,16 @@ export async function syncProblemsToDatabase(): Promise<{ totalProblems: number;
         totalProblems++;
         totalTestcases += testCases.length;
       } catch (err: any) {
-        console.warn(`[Sync Problems] Skipping ${item} due to error:`, err.message);
+        console.error(`[Sync Problems] ❌ Error processing ${item}:`, err.message);
+        throw err; // Fail clearly if DB query fails during problem sync
       }
     }
   } catch (err: any) {
-    console.error('[Sync Problems] Failed to read problems directory:', err.message);
+    console.error('[Sync Problems] ❌ Failed during problems synchronization:', err.message);
+    throw err;
   }
 
-  // H3: Warn on duplicate problem order values (causes progression bugs)
+  // Warn on duplicate problem order values
   try {
     const allProblems = await db.select({ id: problems.id, order: problems.order }).from(problems);
     const orderMap = new Map<number, string[]>();
@@ -99,7 +102,7 @@ export async function syncProblemsToDatabase(): Promise<{ totalProblems: number;
     }
     for (const [order, ids] of orderMap.entries()) {
       if (ids.length > 1) {
-        console.warn(`[Sync Problems] ⚠ DUPLICATE ORDER ${order} detected for problems: ${ids.join(', ')}`);
+        console.warn(`[Sync Problems] ⚠️ DUPLICATE ORDER ${order} detected for problems: ${ids.join(', ')}`);
       }
     }
   } catch (err: any) {
