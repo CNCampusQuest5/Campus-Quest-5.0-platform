@@ -163,18 +163,18 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           </div>
 
           {/* Quick-Login dev buttons — always shown with mapped passwords */}
-          <div className="mt-1">
-            <div className="text-[10px] font-mono font-bold text-black/60 uppercase tracking-widest mb-1.5 text-center">
-              ⚡ QUICK LOGIN (Dev Mode)
+          <div className="mt-0">
+            <div className="text-[10px] font-mono font-bold text-yellow-300 uppercase tracking-widest mb-1 text-center bg-black/60 py-0.5 border border-black">
+              ⚡ QUICK LOGIN ({testTeams.length} TEAMS)
             </div>
-            <div className="grid grid-cols-2 gap-1.5 max-h-[160px] overflow-y-auto p-1 border-2 border-black bg-white/40 shadow-inner">
+            <div className="grid grid-cols-2 gap-1 max-h-[120px] overflow-y-auto p-1 border-2 border-black bg-black/50 backdrop-blur-sm shadow-inner rounded-sm">
               {testTeams.map(t => (
                 <button
                   key={t.id}
                   type="button"
                   onClick={() => doLogin(t.name, t.password)}
                   disabled={loading}
-                  className="bg-yellow-400 hover:bg-yellow-300 border-2 border-black text-black font-bold text-[11px] py-1.5 px-2 shadow-[2px_2px_0_#000] active:translate-y-0.5 active:translate-x-0.5 active:shadow-none transition-all truncate disabled:opacity-50 text-left"
+                  className="bg-yellow-400 hover:bg-yellow-300 border border-black text-black font-bold text-[10px] py-1 px-1.5 shadow-[1px_1px_0_#000] active:translate-y-0.5 active:translate-x-0.5 active:shadow-none transition-all truncate disabled:opacity-50 text-left"
                   title={`Login as ${t.name}`}
                 >
                   {t.name}
