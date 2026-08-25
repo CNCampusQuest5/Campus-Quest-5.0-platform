@@ -26,7 +26,7 @@ export const teams = pgTable('teams', {
   violationCount: integer('violation_count').notNull().default(0),
   isDisqualified: boolean('is_disqualified').notNull().default(false),
   isPaused: boolean('is_paused').notNull().default(false),
-  spiderSenseCharges: integer('spider_sense_charges').notNull().default(1),
+  spiderSenseCharges: integer('spider_sense_charges').notNull().default(3),
   hintStage: integer('hint_stage').notNull().default(0),
 
   freezeEndsAt: timestamp('freeze_ends_at'),

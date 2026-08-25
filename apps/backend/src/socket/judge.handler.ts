@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { problems, submissions, teams, contests } from '../db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { SupportedLanguage } from '../judge/languages';
 import { judgeQueue, judgeQueueEvents, DEFAULT_JOB_OPTIONS } from '../judge/queue';
 import { broadcastLeaderboard } from '../utils/leaderboard';
@@ -154,37 +154,36 @@ export function registerJudgeHandlers(socket: any) {
           .from(submissions)
           .where(and(
             eq(submissions.teamId, teamId),
-            eq(submissions.verdict, 'AC')
+            inArray(submissions.verdict, ['AC', 'BYPASSED'])
           ));
 
-          const solvedIds = Array.from(new Set(teamSubmissions.map(s => s.problemId)));
-          const distinctSolved = solvedIds.length;
+          const solvedIds = Array.from(new Set(teamSubmissions.filter(s => s.verdict === 'AC').map(s => s.problemId)));
+          const bypassedIds = Array.from(new Set(teamSubmissions.filter(s => s.verdict === 'BYPASSED').map(s => s.problemId)));
+          const distinctTotal = new Set([...solvedIds, ...bypassedIds]).size;
           
           let newHintStage = 0;
-          if (distinctSolved >= 9) newHintStage = 3;
-          else if (distinctSolved >= 6) newHintStage = 2;
-          else if (distinctSolved >= 3) newHintStage = 1;
+          if (distinctTotal >= 10) newHintStage = 3;
+          else if (distinctTotal >= 6) newHintStage = 2;
+          else if (distinctTotal >= 3) newHintStage = 1;
 
           const currentStage = existingTeam?.hintStage ?? 0;
-          if (newHintStage > currentStage) {
-            await tx.update(teams).set({ hintStage: newHintStage }).where(eq(teams.id, teamId));
+          const finalHintStage = Math.max(currentStage, newHintStage);
+          if (finalHintStage > currentStage) {
+            await tx.update(teams).set({ hintStage: finalHintStage }).where(eq(teams.id, teamId));
           }
           
-          const socketEmitStart = Date.now();
-          // WARN-5 fix: include solvedProblemIds so client can update local set without waiting for sync
           socket.to(`team:${teamId}`).emit('team:progress_updated', {
-            hintStage: newHintStage,
-            solvedCount: distinctSolved,
+            hintStage: finalHintStage,
+            solvedCount: distinctTotal,
             solvedProblemIds: solvedIds,
-            bypassedProblemIds: [],
+            bypassedProblemIds: bypassedIds,
           });
           socket.emit('team:progress_updated', {
-            hintStage: newHintStage,
-            solvedCount: distinctSolved,
+            hintStage: finalHintStage,
+            solvedCount: distinctTotal,
             solvedProblemIds: solvedIds,
-            bypassedProblemIds: [],
+            bypassedProblemIds: bypassedIds,
           });
-          socketTime += Date.now() - socketEmitStart;
         }
         
         return [sub];

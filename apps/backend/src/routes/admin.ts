@@ -63,7 +63,7 @@ export async function seedTestTeams() {
         violationCount: 0,
         isDisqualified: false,
         isPaused: false,
-        spiderSenseCharges: 1,
+        spiderSenseCharges: 3,
         hintStage: 0,
       }).onConflictDoNothing();
       console.log(`[Seed] Created test team: ${t.name} (${t.id})`);
@@ -357,7 +357,13 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       };
     }));
 
-    return problemsWithStarters;
+    // Pick 10 problems out of the pool and re-index orders 1..10
+    const selectedTen = problemsWithStarters.slice(0, 10).map((p, idx) => ({
+      ...p,
+      order: idx + 1,
+    }));
+
+    return selectedTen;
   });
 
   // 4. Get all teams with stats

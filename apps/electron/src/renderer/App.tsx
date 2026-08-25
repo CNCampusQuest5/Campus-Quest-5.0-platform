@@ -236,9 +236,9 @@ export default function App() {
     const wasReconnecting = { value: false };
 
     const handleConnect = () => {
+      // Authoritative server-state sync on EVERY connect (initial login & reconnects)
+      socket.emit('contest:sync');
       if (wasReconnecting.value) {
-        // Authoritative server-state sync on every reconnect
-        socket.emit('contest:sync');
         setReconnectState('RESTORED');
         setTimeout(() => setReconnectState('IDLE'), 3500);
       } else {

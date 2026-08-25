@@ -5,7 +5,7 @@ import { broadcastLeaderboard } from '../utils/leaderboard';
 import { QUESTION_POOL } from '../config/mcqPool';
 
 const POWERUP_LIMITS = {
-  SPIDER_SENSE: 1,
+  SPIDER_SENSE: 3,
   WEB_FLUID: 2,
   SUIT_TECH: 2
 };
@@ -246,10 +246,21 @@ export function registerPowerupHandlers(socket: any, io: any) {
         ));
       const solvedIds = Array.from(new Set(allTeamSubs.filter(s => s.verdict === 'AC').map(s => s.problemId)));
       const bypassedIds = Array.from(new Set(allTeamSubs.filter(s => s.verdict === 'BYPASSED').map(s => s.problemId)));
+      const totalSolvedOrBypassed = new Set([...solvedIds, ...bypassedIds]).size;
       
+      let newHintStage = 0;
+      if (totalSolvedOrBypassed >= 10) newHintStage = 3;
+      else if (totalSolvedOrBypassed >= 6) newHintStage = 2;
+      else if (totalSolvedOrBypassed >= 3) newHintStage = 1;
+
+      if (newHintStage > team.hintStage) {
+        await db.update(teams).set({ hintStage: newHintStage }).where(eq(teams.id, teamId));
+      }
+      const finalHintStage = Math.max(team.hintStage, newHintStage);
+
       const progressPayload = {
-        hintStage: team.hintStage,
-        solvedCount: solvedIds.length,
+        hintStage: finalHintStage,
+        solvedCount: totalSolvedOrBypassed,
         solvedProblemIds: solvedIds,
         bypassedProblemIds: bypassedIds,
       };
