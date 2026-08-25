@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db';
-import { teams, contests, problems, submissions, teamPowerups, violations } from '../db/schema';
+import { teams, contests, problems, submissions, teamPowerups, violations, teamWorkspaces, spiderSenseChallenges } from '../db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { calculateLeaderboard, broadcastLeaderboard } from '../utils/leaderboard';
 import fs from 'fs/promises';
@@ -271,19 +271,21 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     return { success: true, message: 'Emergency stop activated. All teams disqualified.' };
   });
 
-  // 1f. Reset Global Contest and Clear All Submissions/Scores
+  // 1f. Reset Global Contest and Clear All Submissions/Scores/Workspaces
   fastify.post('/admin/reset-contest', async (_request, _reply) => {
-    // 1. Clear submissions, team powerups, violations
+    // 1. Clear submissions, team powerups, violations, workspaces, and MCQ challenges
     await db.delete(submissions);
     await db.delete(teamPowerups);
     await db.delete(violations);
+    await db.delete(teamWorkspaces);
+    await db.delete(spiderSenseChallenges);
 
     // 2. Reset team stats
     await db.update(teams).set({
       violationCount: 0,
       isDisqualified: false,
       isPaused: false,
-      spiderSenseCharges: 1,
+      spiderSenseCharges: 3,
       hintStage: 0,
     });
 
@@ -304,9 +306,10 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     const io = (fastify as any).io;
     if (io) {
       io.emit('contest:ended');
+      io.emit('contest:sync');
       await broadcastLeaderboard(io, db);
     }
-    return { success: true, message: 'Contest reset. All team scores, submissions, and powerups cleared.' };
+    return { success: true, message: 'Contest reset. All team scores, submissions, workspaces, and powerups cleared.' };
   });
 
   // 2. Resume a Paused Team
