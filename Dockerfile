@@ -56,6 +56,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/backend/dist ./apps/backend/dist
 COPY --from=builder /app/apps/backend/package.json ./apps/backend/
 COPY --from=builder /app/packages ./packages
+COPY --from=builder /app/apps/backend/drizzle ./apps/backend/drizzle
 
 # Copy problems data so it is bundled in the Docker image
 COPY problems ./problems
