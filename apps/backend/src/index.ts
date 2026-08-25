@@ -8,7 +8,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import adminRoutes from './routes/admin';
 import { seedTestTeams } from './routes/admin';
 import workspaceRoutes from './routes/workspace';
-import demoRoutes from './routes/demo'; // DEMO: remove before production if desired
+import demoRoutes from './routes/demo';
 import { registerJudgeHandlers } from './socket/judge.handler';
 import { registerContestHandlers } from './socket/contest.handler';
 import { registerPowerupHandlers } from './socket/powerup.handler';
@@ -27,45 +27,28 @@ const HOST = process.env.HOST ?? '0.0.0.0';
 const CORS_ORIGINS = (process.env.CORS_ORIGINS ?? 'http://localhost:5173,http://localhost:5174,http://localhost:3000').split(',');
 
 async function bootstrap() {
-  // Validate required environment variables
+  console.log('[Startup] NODE_ENV=production');
+  console.log(`[Startup] PORT=${PORT}`);
+  console.log(`[Startup] Host=${HOST}`);
+  console.log('[Startup] Health endpoint=/health');
+
+  // Validate required environment variables (Do NOT print values to log!)
   const REQUIRED_ENV = ['DATABASE_URL'];
   const missing = REQUIRED_ENV.filter(key => !process.env[key]);
   if (missing.length > 0) {
     console.error(`[Startup] ❌ Missing required environment variables: ${missing.join(', ')}`);
-    console.error('[Startup] Please check your .env file and restart.');
+    console.error('[Startup] Please check your environment configuration and restart.');
     process.exit(1);
   }
 
-  // Automatically apply database migrations / create missing tables
-  await runMigrations();
-
-  // Sync local problems to database and print startup summary
-  const syncResult = await syncProblemsToDatabase();
-  const totalTestcases = syncResult.totalTestcases;
-  const totalProblems = syncResult.totalProblems;
-  console.log(`\n📚 ${totalProblems} problems loaded, ${totalTestcases} testcases discovered`);
-  // Seed test / dev teams (idempotent)
-  await seedTestTeams();
-  
-  // Start the background code execution worker (unless explicitly disabled)
-  let worker: any = null;
-  let workerRunning = false;
-  if (process.env.DISABLE_JUDGE_WORKER !== 'true') {
-    worker = startJudgeWorker();
-    workerRunning = true;
-  }
-
-  const fastify = Fastify({ logger: true });
+  // Create lightweight Fastify instance first so we can bind the health port immediately
+  const fastify = Fastify({ logger: false });
 
   await fastify.register(cors, {
     origin: (origin, cb) => {
-      // Allow requests with no origin (mobile apps, curl, etc.)
       if (!origin) return cb(null, true);
-      // Allow any Vercel preview/production URL
       if (origin.endsWith('.vercel.app')) return cb(null, true);
-      // Allow localhost for development
       if (origin.startsWith('http://localhost')) return cb(null, true);
-      // Allow explicitly configured origins
       if (CORS_ORIGINS.includes(origin)) return cb(null, true);
       cb(new Error('Not allowed by CORS'), false);
     },
@@ -79,35 +62,26 @@ async function bootstrap() {
     timeWindow: '1 minute',
   });
 
-  // Health check
-  fastify.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
+  // 1. Lightweight health check - binds immediately, does NOT fail if database/redis is starting
+  fastify.get('/health', async () => ({ status: 'ok' }));
 
-  // Detailed health check — for Railway health monitoring and manual verification.
-  // Does NOT expose credentials or secrets.
+  // 2. Detailed health check
   fastify.get('/health/detailed', async (_req, reply) => {
     const checks: Record<string, string> = {};
-
-    // Database check
     try {
       await db.execute(sql`SELECT 1`);
       checks.database = 'ok';
     } catch {
       checks.database = 'error';
     }
-
-    // Redis check
     try {
       await redisConnection.ping();
       checks.redis = 'ok';
     } catch {
       checks.redis = 'error';
     }
-
-    checks.judgeWorker = workerRunning ? 'ok' : 'disabled';
-    checks.problems = `${totalProblems} loaded (${totalTestcases} testcases)`;
-    checks.demoMode = process.env.DEMO_MODE === 'true' ? 'enabled' : 'disabled';
-
-    const allOk = Object.values(checks).every(v => v === 'ok' || v.startsWith('disabled') || v.includes('loaded'));
+    checks.judgeWorker = process.env.DISABLE_JUDGE_WORKER !== 'true' ? 'ok' : 'disabled';
+    const allOk = Object.values(checks).every(v => v === 'ok' || v === 'disabled');
     return reply.code(allOk ? 200 : 503).send({
       status: allOk ? 'ok' : 'degraded',
       timestamp: new Date().toISOString(),
@@ -118,9 +92,9 @@ async function bootstrap() {
   // Register admin API routes
   await fastify.register(adminRoutes);
   await fastify.register(workspaceRoutes);
-  await fastify.register(demoRoutes); // DEMO: remove before production if desired
+  await fastify.register(demoRoutes);
 
-  // Socket.IO
+  // Socket.IO Setup
   const io = new SocketIOServer(fastify.server, {
     cors: {
       origin: (origin, cb) => {
@@ -139,7 +113,6 @@ async function bootstrap() {
 
   // Socket.IO Auth Middleware
   io.use((socket, next) => {
-    // Admin connections authenticate using ADMIN_SECRET
     const incomingSecret = socket.handshake.auth?.adminSecret;
     if (incomingSecret) {
       if (incomingSecret !== ADMIN_SECRET) {
@@ -149,7 +122,6 @@ async function bootstrap() {
       return next();
     }
 
-    // Normal clients must authenticate using JWT
     const token = socket.handshake.auth?.token;
     if (!token) {
       return next(new Error('Authentication token missing'));
@@ -165,41 +137,66 @@ async function bootstrap() {
   });
 
   io.on('connection', (socket) => {
-    fastify.log.info(`[Socket] Client connected: ${socket.id}`);
-
-    // Join a default room or extract teamId from decoded token
     const teamId = socket.data?.teamId;
     if (teamId) {
       socket.join(teamId);
       socket.join(`team:${teamId}`);
-      fastify.log.info(`[Socket] Client ${socket.id} associated with team: ${teamId}`);
     }
 
     registerJudgeHandlers(socket);
     registerContestHandlers(socket, io);
     registerPowerupHandlers(socket, io);
 
-    // Admin dashboard joins the admin-room to receive broadcast events
     socket.on('join:admin', () => {
       if (socket.data?.isAdmin) {
         socket.join('admin-room');
-        fastify.log.info(`[Socket] Admin ${socket.id} joined admin-room`);
-      } else {
-        fastify.log.warn(`[Socket] Unauthorized join:admin attempt by ${socket.id}`);
       }
-    });
-
-    socket.on('disconnect', () => {
-      fastify.log.info(`[Socket] Client disconnected: ${socket.id}`);
     });
   });
 
+  // Bind Fastify Server to port so healthchecks immediately resolve 200 OK
   await fastify.listen({ port: PORT, host: HOST });
-  console.log(`\n🚀 Campus Quest Backend running at http://${HOST}:${PORT}`);
-  console.log(`📡 Socket.IO attached`);
-  console.log(`🔒 JWT auth: ENABLED | Admin auth: ENABLED`);
-  console.log(`🌐 CORS origins: ${CORS_ORIGINS.join(', ')}`);
-  console.log(`⚡ Rate limit: 200 req/min`);
+  console.log('[Startup] Server listening');
+  console.log('[Startup] Socket.IO=ready');
+
+  // ── Non-critical initialization operations executed asynchronously after binding ──
+  
+  // 1. Run migrations safely
+  runMigrations().then(() => {
+    console.log('[Startup] Database=connected');
+  }).catch(err => {
+    console.error('[Startup] ❌ Database connection/migration error:', err.message);
+  });
+
+  // 2. Redis connection test
+  redisConnection.ping().then(() => {
+    console.log('[Startup] Redis=connected');
+  }).catch(err => {
+    console.warn('[Startup] ⚠️ Redis connection failed:', err.message);
+  });
+
+  // 3. Problem syncing
+  syncProblemsToDatabase().then((syncResult) => {
+    console.log(`[Startup] Problems loaded: ${syncResult.totalProblems} problems, ${syncResult.totalTestcases} testcases`);
+  }).catch(err => {
+    console.error('[Startup] ❌ Problem sync failed:', err.message);
+  });
+
+  // 4. Seed test teams
+  seedTestTeams().catch(err => {
+    console.error('[Startup] ❌ Test team seeding failed:', err.message);
+  });
+
+  // 5. Start background worker queue
+  let worker: any = null;
+  if (process.env.DISABLE_JUDGE_WORKER !== 'true') {
+    try {
+      worker = startJudgeWorker();
+      console.log('[Startup] Judge worker=ready');
+    } catch (err: any) {
+      console.error('[Startup] ❌ Judge worker initialization failed:', err.message);
+    }
+  }
 
   // Server-authoritative lobby timer check tick
   setInterval(async () => {

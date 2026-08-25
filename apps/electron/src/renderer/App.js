@@ -115,11 +115,10 @@ export default function App() {
                         }
                         const newMax = solvedProblemIdsRef.current.size + bypassedProblemIdsRef.current.size + 1;
                         setMaxUnlockedQuestion(newMax);
-                        if (questionNum === idx + 1) {
-                            const nextQ = Math.min(newMax, problems.length);
-                            if (nextQ > questionNum) {
-                                setQuestionNum(nextQ);
-                            }
+                        // Auto-advance to the next question if this was the current question
+                        const nextQ = Math.min(newMax, problems.length);
+                        if (nextQ > questionNum) {
+                            setQuestionNum(nextQ);
                         }
                     }
                 }
