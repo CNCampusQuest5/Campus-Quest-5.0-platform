@@ -29,8 +29,16 @@ export default function Lobby({ onProceed, teamName, onTeamNameChange, lobbyTime
         }, 1000);
         return () => clearInterval(timer);
     }, [timeLeft, contestStatus]);
-    // HIGH-8: Lobby exits ONLY when admin fires 'contest:started' from the backend.
-    // The previous fake team counter that auto-proceeded after ~2 min has been removed.
+    // If contest is ALREADY running when Lobby mounts or syncs, immediately proceed!
+    useEffect(() => {
+        if (contestStatus === 'RUNNING') {
+            setIsStarting(true);
+            const t = setTimeout(() => onProceed(), 500);
+            return () => clearTimeout(t);
+        }
+        return undefined;
+    }, [contestStatus, onProceed]);
+    // HIGH-8: Lobby exits when admin fires 'contest:started' or 'contest:resumed' from the backend.
     useEffect(() => {
         const handleContestStarted = () => {
             setIsStarting(true);

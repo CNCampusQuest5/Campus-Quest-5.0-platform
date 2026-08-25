@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 
-const BACKEND = (import.meta as any).env?.VITE_API_URL || 'https://campus-quest-backend-mspi.onrender.com';
+const DEFAULT_BACKEND = 'https://campus-quest-backend-production-8cee.up.railway.app';
+const BACKEND = (import.meta as any).env?.VITE_API_URL || DEFAULT_BACKEND;
 const API_URL = `${BACKEND}/admin`;
 const DEMO_URL = `${BACKEND}/demo`;
-const SOCKET_URL = BACKEND;
+const SOCKET_URL = (import.meta as any).env?.VITE_SOCKET_URL || BACKEND;
 
 interface Team {
   id: string;

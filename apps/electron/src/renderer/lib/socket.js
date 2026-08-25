@@ -1,9 +1,9 @@
 import { io } from 'socket.io-client';
 /**
- * Production API base:
- * 1. Injected at build time via main process: window.__CQ_API_URL__
+ * API base:
+ * 1. Injected at runtime via main process: window.__CQ_API_URL__
  * 2. Compile-time VITE env var: VITE_API_URL
- * 3. Fallback to Render deployment (dev/staging only)
+ * 3. Fallback to Railway deployment
  */
 export const API_BASE = window.__CQ_API_URL__ ||
     import.meta.env.VITE_API_URL ||

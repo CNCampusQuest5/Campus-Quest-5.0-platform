@@ -51,9 +51,9 @@ export default function App() {
     useEffect(() => {
         const handleContestStarted = (data) => {
             setContestStatus('RUNNING');
-            // CRITICAL-4: Store server-authoritative end time when contest starts
             if (data?.endsAt)
                 setContestEndsAt(data.endsAt);
+            setCurrentScreen((prev) => (prev === 'lobby' || prev === 'diagnostics' ? 'coding' : prev));
             socket.emit('contest:sync');
         };
         const handleLobbyStarted = (data) => {
@@ -65,9 +65,9 @@ export default function App() {
         // CRITICAL-5: contest:resumed is now distinct from contest:started
         const handleContestResumed = (data) => {
             setContestStatus('RUNNING');
-            // Update endsAt with adjusted value (pause time was added back by backend)
             if (data?.endsAt)
                 setContestEndsAt(data.endsAt);
+            setCurrentScreen((prev) => (prev === 'lobby' || prev === 'diagnostics' ? 'coding' : prev));
         };
         const handleContestPaused = () => setContestStatus('PAUSED');
         const handleContestEnded = () => {
@@ -129,7 +129,12 @@ export default function App() {
         // MEDIUM-3/4: Named handler references for proper cleanup
         const handlePowerupUpdated = (counts) => setPowerupCounts(counts);
         const handleSyncResult = (data) => {
-            setContestStatus(data.contestStatus);
+            if (data.contestStatus) {
+                setContestStatus(data.contestStatus);
+                if (data.contestStatus === 'RUNNING') {
+                    setCurrentScreen((prev) => (prev === 'lobby' || prev === 'diagnostics' ? 'coding' : prev));
+                }
+            }
             if (data.lobbyTimeLeftMs !== undefined) {
                 setLobbyTimeLeftMs(data.lobbyTimeLeftMs);
             }
