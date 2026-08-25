@@ -4,7 +4,13 @@ import electron from 'vite-plugin-electron';
 import renderer from 'vite-plugin-electron-renderer';
 import path from 'path';
 
+const PRODUCTION_RAILWAY_URL = 'https://campus-quest-backend-production-8cee.up.railway.app';
+
 export default defineConfig({
+  define: {
+    'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || PRODUCTION_RAILWAY_URL),
+    'import.meta.env.VITE_SOCKET_URL': JSON.stringify(process.env.VITE_SOCKET_URL || PRODUCTION_RAILWAY_URL),
+  },
   plugins: [
     react(),
     electron([
