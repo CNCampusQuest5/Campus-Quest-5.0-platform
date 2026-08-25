@@ -12,12 +12,33 @@ interface TestTeam {
   password: string;
 }
 
-// Hardcoded fallback — shown even if backend fetch fails
+// Complete test teams credentials list — shown even if backend fetch is offline
 const FALLBACK_TEST_TEAMS: TestTeam[] = [
-  { id: 'test-team-alpha', name: 'Spider Squad',  password: 'spider123'  },
-  { id: 'test-team-beta',  name: 'Iron Coders',   password: 'iron456'    },
-  { id: 'test-team-gamma', name: 'Web Slingers',  password: 'web789'     },
-  { id: 'test-team-delta', name: 'Quantum Devs',  password: 'quantum000' },
+  { id: 'test-team-alpha',     name: 'Spider Squad',       password: 'spider123' },
+  { id: 'test-team-beta',      name: 'Iron Coders',        password: 'iron456' },
+  { id: 'test-team-gamma',     name: 'Web Slingers',       password: 'web789' },
+  { id: 'test-team-delta',     name: 'Quantum Devs',       password: 'quantum000' },
+  { id: 'test-team-epsilon',   name: 'Cyber Spiders',      password: 'cyber101' },
+  { id: 'test-team-zeta',      name: 'Venom Bytes',        password: 'venom2024' },
+  { id: 'test-team-eta',       name: 'Glitch Hackers',     password: 'glitch505' },
+  { id: 'test-team-theta',     name: 'Prowler Protocol',   password: 'prowler77' },
+  { id: 'test-team-iota',      name: 'Multiverse Ninjas',  password: 'multiverse99' },
+  { id: 'test-team-kappa',     name: 'Oscorp Engineers',   password: 'oscorp321' },
+  { id: 'test-team-lambda',    name: 'Symbiote Script',    password: 'symbiote11' },
+  { id: 'test-team-mu',        name: 'Daily Bugle Devs',   password: 'bugle2026' },
+  { id: 'test-team-nu',        name: 'Sinister Coders',    password: 'sinister6' },
+  { id: 'test-team-xi',        name: 'Stark Industries',   password: 'stark3000' },
+  { id: 'test-team-omicron',   name: 'Web Warriors',       password: 'warriors88' },
+  { id: 'test-team-pi',        name: 'Electro Algorithms', password: 'electro100' },
+  { id: 'test-team-rho',       name: 'Goblin Innovators',  password: 'goblin200' },
+  { id: 'test-team-sigma',     name: 'Rhino Compilers',    password: 'rhino300' },
+  { id: 'test-team-tau',       name: 'Mysterio Coders',    password: 'mysterio400' },
+  { id: 'test-team-upsilon',   name: 'Kraven Hackers',     password: 'kraven500' },
+  { id: 'test-team-phi',       name: 'Lizard Logic',       password: 'lizard600' },
+  { id: 'test-team-chi',       name: 'Sandman Script',     password: 'sandman700' },
+  { id: 'test-team-psi',       name: 'Vulture Vector',     password: 'vulture800' },
+  { id: 'test-team-omega',     name: 'Carnage Bytes',      password: 'carnage900' },
+  { id: 'test-team-25',        name: 'Kingpin Coders',     password: 'kingpin999' },
 ];
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
@@ -27,12 +48,24 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [loading, setLoading] = useState(false);
   const [testTeams, setTestTeams] = useState<TestTeam[]>(FALLBACK_TEST_TEAMS);
 
-  // Try to load any extra test teams from backend (optional — fallback is always shown)
+  // Load test teams from backend and map passwords cleanly
   useEffect(() => {
     fetch(`${API_BASE}/api/test-teams`)
       .then(r => r.ok ? r.json() : null)
-      .then((data: TestTeam[] | null) => { if (data?.length) setTestTeams(data); })
-      .catch(() => {}); // silent — fallback list is already set
+      .then((data: TestTeam[] | null) => {
+        if (data?.length) {
+          const merged = data.map(item => {
+            const fallback = FALLBACK_TEST_TEAMS.find(f => f.id === item.id || f.name.toLowerCase() === item.name.toLowerCase());
+            return {
+              id: item.id,
+              name: item.name,
+              password: item.password || fallback?.password || ''
+            };
+          });
+          setTestTeams(merged);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const doLogin = async (name: string, pwd: string) => {
@@ -119,18 +152,20 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             />
           </div>
 
-          {/* Quick-Login dev buttons — always shown from hardcoded list */}
+          {/* Quick-Login dev buttons — always shown with mapped passwords */}
           <div className="mt-1">
             <div className="text-[10px] font-mono font-bold text-black/60 uppercase tracking-widest mb-1.5 text-center">
               ⚡ QUICK LOGIN (Dev Mode)
             </div>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5 max-h-[160px] overflow-y-auto p-1 border-2 border-black bg-white/40 shadow-inner">
               {testTeams.map(t => (
                 <button
                   key={t.id}
+                  type="button"
                   onClick={() => doLogin(t.name, t.password)}
                   disabled={loading}
-                  className="bg-yellow-400 hover:bg-yellow-300 border-2 border-black text-black font-bold text-[11px] py-1.5 px-2 shadow-[2px_2px_0_#000] active:translate-y-0.5 active:translate-x-0.5 active:shadow-none transition-all truncate disabled:opacity-50"
+                  className="bg-yellow-400 hover:bg-yellow-300 border-2 border-black text-black font-bold text-[11px] py-1.5 px-2 shadow-[2px_2px_0_#000] active:translate-y-0.5 active:translate-x-0.5 active:shadow-none transition-all truncate disabled:opacity-50 text-left"
+                  title={`Login as ${t.name}`}
                 >
                   {t.name}
                 </button>

@@ -361,10 +361,9 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     return { success: true, teamId: team.id, teamName: team.name, token };
   });
 
-  // 7. Test teams listing (dev only — used to show quick-login buttons in the admin panel)
-  // Passwords are intentionally excluded — this endpoint is for display only.
+  // 7. Test teams listing (dev only — used to show quick-login buttons in the electron client)
   fastify.get('/api/test-teams', async (_request, _reply) => {
-    return TEST_TEAMS.map(t => ({ id: t.id, name: t.name }));
+    return TEST_TEAMS.map(t => ({ id: t.id, name: t.name, password: t.password }));
   });
 
   // 8. Get team state by teamId (used for reconnect sync)
