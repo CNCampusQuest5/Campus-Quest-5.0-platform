@@ -20,12 +20,11 @@ export async function runMigrations() {
   }
 
   try {
-    // ── Safe schema evolution ──────────────────────────────────────────────────
-    // Instead of DROP SCHEMA (which destroys all contest data), we add missing
-    // columns individually using IF NOT EXISTS. This is safe to run mid-contest.
-    //
-    // Add columns introduced in the lobby phase if they don't exist yet.
-    // This runs before the Drizzle migrator so the migrator sees a consistent schema.
+    // 1. Run the Drizzle migrator first (creates base tables if they don't exist in Supabase)
+    await migrate(db, { migrationsFolder });
+    console.log(`[Database] ✅ Migrations successfully applied from: ${migrationsFolder}`);
+
+    // 2. Run Safe Schema Evolution next (adds evolutionary lobby/timer columns/tables if missing)
     await db.execute(sql`
       ALTER TABLE contests
         ADD COLUMN IF NOT EXISTS lobby_started_at TIMESTAMP,
@@ -51,13 +50,8 @@ export async function runMigrations() {
         "completed_at" timestamp
       )
     `);
-
-    // Run the Drizzle migration files (idempotent — already-applied migrations are skipped).
-    await migrate(db, { migrationsFolder });
-    console.log(`[Database] ✅ Migrations successfully applied from: ${migrationsFolder}`);
+    console.log('[Database] ✅ Safe schema evolution completed.');
   } catch (err: any) {
     console.error('[Database] ❌ Migration error:', err.message);
-    // Do NOT exit — let the server start and serve what it can.
-    // A broken migration should not take down a running contest.
   }
 }
