@@ -3,7 +3,7 @@ import { db, client as pgClient } from '../src/db';
 import { connection as redisConnection } from '../src/config/redis';
 import { contests, teams, problems, submissions, teamWorkspaces, teamPowerups, violations, spiderSenseChallenges } from '../src/db/schema';
 import { calculateLeaderboard } from '../src/utils/leaderboard';
-import { verifySchema } from '../src/db/migrate';
+import { verifySchema, logSafePgError } from '../src/db/migrate';
 import { sql } from 'drizzle-orm';
 
 async function main() {
@@ -15,7 +15,7 @@ async function main() {
     await db.execute(sql`SELECT 1`);
     console.log('[Verify DB] ✅ 1. PostgreSQL connection: OK');
   } catch (err: any) {
-    console.error('[Verify DB] ❌ 1. PostgreSQL connection: FAILED -', err.message);
+    logSafePgError('[Verify DB] ❌ 1. PostgreSQL connection:', err);
     failed = true;
   }
 

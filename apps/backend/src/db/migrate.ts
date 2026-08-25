@@ -5,15 +5,23 @@ import path from 'path';
 import fs from 'fs';
 
 export function logSafePgError(prefix: string, err: any) {
-  console.error(`${prefix} Migration error occurred.`);
+  console.error(`${prefix} Database operation failed.`);
   if (err?.code) console.error(`${prefix} PostgreSQL code=${err.code}`);
+  if (err?.cause?.code) console.error(`${prefix} Underlying cause code=${err.cause.code}`);
+  if (err?.cause?.message) {
+    const safeCause = String(err.cause.message).replace(/postgres(?:ql)?:\/\/([^:]+):([^@]+)@/g, 'postgres://$1:***@');
+    console.error(`${prefix} Underlying cause message=${safeCause}`);
+  }
   if (err?.message) {
-    const safeMsg = String(err.message).replace(/postgres:\/\/([^:]+):([^@]+)@/g, 'postgres://$1:***@');
+    const safeMsg = String(err.message).replace(/postgres(?:ql)?:\/\/([^:]+):([^@]+)@/g, 'postgres://$1:***@');
     console.error(`${prefix} PostgreSQL message=${safeMsg}`);
   }
   if (err?.detail) {
-    const safeDetail = String(err.detail).replace(/postgres:\/\/([^:]+):([^@]+)@/g, 'postgres://$1:***@');
+    const safeDetail = String(err.detail).replace(/postgres(?:ql)?:\/\/([^:]+):([^@]+)@/g, 'postgres://$1:***@');
     console.error(`${prefix} PostgreSQL detail=${safeDetail}`);
+  }
+  if (err?.hint) {
+    console.error(`${prefix} PostgreSQL hint=${err.hint}`);
   }
 }
 
