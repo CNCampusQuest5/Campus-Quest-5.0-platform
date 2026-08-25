@@ -20,8 +20,12 @@ export async function runMigrations() {
   }
 
   try {
-    // 1. Run the Drizzle migrator first (creates base tables if they don't exist in Supabase)
-    await migrate(db, { migrationsFolder });
+    // 1. Run the Drizzle migrator first, mapping the migrations metadata schema to 'public'
+    // This bypasses the CREATE SCHEMA IF NOT EXISTS "drizzle" permission error on Supabase
+    await migrate(db, { 
+      migrationsFolder,
+      migrationsSchema: 'public'
+    });
     console.log(`[Database] ✅ Migrations successfully applied from: ${migrationsFolder}`);
 
     // 2. Run Safe Schema Evolution next (adds evolutionary lobby/timer columns/tables if missing)
