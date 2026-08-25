@@ -24,7 +24,6 @@ import { eq, sql } from 'drizzle-orm';
 
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
 const HOST = process.env.HOST ?? '0.0.0.0';
-const CORS_ORIGINS = (process.env.CORS_ORIGINS ?? 'http://localhost:5173,http://localhost:5174,http://localhost:3000').split(',');
 
 let isDbReady = false;
 
@@ -48,13 +47,7 @@ async function bootstrap() {
   const fastify = Fastify({ logger: false });
 
   await fastify.register(cors, {
-    origin: (origin, cb) => {
-      if (!origin) return cb(null, true);
-      if (origin.endsWith('.vercel.app')) return cb(null, true);
-      if (origin.startsWith('http://localhost')) return cb(null, true);
-      if (CORS_ORIGINS.includes(origin)) return cb(null, true);
-      cb(new Error('Not allowed by CORS'), false);
-    },
+    origin: true,
     credentials: true,
   });
 
@@ -114,16 +107,11 @@ async function bootstrap() {
   await fastify.register(workspaceRoutes);
   await fastify.register(demoRoutes);
 
-  // Socket.IO Setup
+  // Socket.IO Setup — allow all origins so Electron desktop binary file:// protocol works cleanly
   const io = new SocketIOServer(fastify.server, {
     cors: {
-      origin: (origin, cb) => {
-        if (!origin) return cb(null, true);
-        if (origin.endsWith('.vercel.app')) return cb(null, true);
-        if (origin.startsWith('http://localhost')) return cb(null, true);
-        if (CORS_ORIGINS.includes(origin)) return cb(null, true);
-        cb(new Error('Not allowed by CORS'), false);
-      },
+      origin: '*',
+      methods: ['GET', 'POST'],
       credentials: true,
     },
     transports: ['websocket', 'polling'],

@@ -74,9 +74,14 @@ export default function LoginPage({ onLogin }) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ teamName: name, password: pwd }),
             });
-            const data = await res.json();
+            const contentType = res.headers.get('content-type') || '';
+            const data = contentType.includes('application/json') ? await res.json() : null;
             if (!res.ok) {
-                setError(data.message || 'INVALID CREDENTIALS, HERO!');
+                if (res.status === 404 && !data) {
+                    setError(`WRONG BACKEND ON ${API_BASE} — START CAMPUS QUEST SERVER`);
+                    return;
+                }
+                setError(data?.message || 'INVALID CREDENTIALS, HERO!');
                 return;
             }
             // Re-attach socket with correct token auth

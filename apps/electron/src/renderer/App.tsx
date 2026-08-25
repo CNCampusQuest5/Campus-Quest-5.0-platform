@@ -293,6 +293,19 @@ export default function App() {
     }
   }, [contestStatus, currentScreen]);
 
+  // Periodic state polling (every 3s) while in lobby/diagnostics to guarantee screen transition
+  useEffect(() => {
+    if (contestStatus === 'RUNNING' && currentScreen === 'coding') return;
+
+    const interval = setInterval(() => {
+      if (socket.connected) {
+        socket.emit('contest:sync');
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [contestStatus, currentScreen]);
+
   // HIGH-5: No optimistic update — powerup:updated event from server is authoritative
   const handleUsePowerup = (type: 'SPIDER_SENSE' | 'WEB_FLUID' | 'SUIT_TECH', problemId?: string) => {
     socket.emit('powerup:use', { type, problemId });
