@@ -29,6 +29,16 @@ const FALLBACK_TEST_TEAMS = [
     { id: 'test-team-psi', name: 'Vulture Vector', password: 'vulture800' },
     { id: 'test-team-omega', name: 'Carnage Bytes', password: 'carnage900' },
     { id: 'test-team-25', name: 'Kingpin Coders', password: 'kingpin999' },
+    { id: 'test-team-26', name: 'Spider-Gwen Guild', password: 'gwen100' },
+    { id: 'test-team-27', name: 'Miles Morales Cadre', password: 'miles200' },
+    { id: 'test-team-28', name: 'Spider-Man 2099', password: 'miguel300' },
+    { id: 'test-team-29', name: 'Spider-Noir Ops', password: 'noir400' },
+    { id: 'test-team-30', name: 'Peni Parker Pilots', password: 'spdr500' },
+    { id: 'test-team-31', name: 'Spider-Ham Heroes', password: 'ham600' },
+    { id: 'test-team-32', name: 'Web-Weaver Cadets', password: 'weaver700' },
+    { id: 'test-team-33', name: 'Silk Network', password: 'silk800' },
+    { id: 'test-team-34', name: 'Arachne Analysts', password: 'arachne900' },
+    { id: 'test-team-35', name: 'Spider-Byte Cyber', password: 'byte1000' },
 ];
 export default function LoginPage({ onLogin }) {
     const [teamName, setTeamName] = useState('');
